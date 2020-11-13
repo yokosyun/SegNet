@@ -1,0 +1,271 @@
+"""
+Train a SegNet model
+"""
+
+from __future__ import print_function
+import argparse
+from dataset import PascalVOCDataset, NUM_CLASSES
+from model import SegNet
+import os
+import time
+import torch
+from torch.utils.data import DataLoader
+from torchvision.utils import save_image
+
+# Constants
+NUM_INPUT_CHANNELS = 3
+NUM_OUTPUT_CHANNELS = NUM_CLASSES
+
+NUM_EPOCHS = 6000
+
+LEARNING_RATE = 1e-4
+MOMENTUM = 0.9
+BATCH_SIZE = 8
+
+
+# Arguments
+parser = argparse.ArgumentParser(description='Train a SegNet model')
+
+parser.add_argument('--data_root', required=True)
+parser.add_argument('--train_path', required=True)
+parser.add_argument('--img_dir', required=True)
+parser.add_argument('--mask_dir', required=True)
+parser.add_argument('--save_dir', required=True)
+parser.add_argument('--checkpoint')
+parser.add_argument('--gpu', type=int)
+
+args = parser.parse_args()
+
+def color_map(indices_image):
+    batch_size = indices_image.size()[0]
+    rows = indices_image.size()[1]
+    cols = indices_image.size()[2]
+    final_out = torch.empty(3, rows, cols)
+    for batch in range(batch_size):
+        result = torch.zeros(3, rows, cols)
+        for row in range(rows):
+            for col in range(cols):
+                if indices_image[batch,row,col] == 0:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 0
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 1:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 0
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 2:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 128
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 3:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 128
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 4:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 0
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 5:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 0
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 6:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 128
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 7:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 128
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 8:
+                    result[0,row,col] = 64
+                    result[1,row,col] = 0
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 9:
+                    result[0,row,col] = 192
+                    result[1,row,col] = 0
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 10:
+                    result[0,row,col] = 64
+                    result[1,row,col] = 128
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 11:
+                    result[0,row,col] = 192
+                    result[1,row,col] = 128
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 12:
+                    result[0,row,col] = 64
+                    result[1,row,col] = 0
+                    result[2,row,col] = 128
+
+
+                elif indices_image[batch,row,col] == 13:
+                    result[0,row,col] = 192
+                    result[1,row,col] = 0
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 14:
+                    result[0,row,col] = 64
+                    result[1,row,col] = 128
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 15:
+                    result[0,row,col] = 192
+                    result[1,row,col] = 128
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 16:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 64
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 17:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 64
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 18:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 192
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 19:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 192
+                    result[2,row,col] = 0
+
+                elif indices_image[batch,row,col] == 20:
+                    result[0,row,col] = 0
+                    result[1,row,col] = 64
+                    result[2,row,col] = 128
+
+                elif indices_image[batch,row,col] == 21:
+                    result[0,row,col] = 128
+                    result[1,row,col] = 64
+                    result[2,row,col] = 128
+
+
+        if batch == 0:
+            final_out = result
+            final_out = final_out.unsqueeze(0)
+        else:
+            final_out = torch.cat([final_out, result.unsqueeze(0)], axis=0)
+            
+
+    save_image(final_out,"result.jpg")
+    
+
+def train():
+    is_better = True
+    prev_loss = float('inf')
+
+    model.train()
+
+    for epoch in range(NUM_EPOCHS):
+        loss_f = 0
+        t_start = time.time()
+        idx = 0
+
+        for batch in train_dataloader:
+            iteration_time = time.time()
+            input_tensor = torch.autograd.Variable(batch['image'])
+            target_tensor = torch.autograd.Variable(batch['mask'])
+
+            if CUDA:
+                input_tensor = input_tensor.cuda(GPU_ID)
+                target_tensor = target_tensor.cuda(GPU_ID)
+
+            predicted_tensor, softmaxed_tensor = model(input_tensor)
+
+
+
+            test = target_tensor.unsqueeze(1)
+
+
+
+            # save_image(input_tensor/torch.max(input_tensor), 'input_tensor.png')
+            # save_image(test.float(), 'target_tensor.png')
+
+            if (False):
+                result = torch.max(softmaxed_tensor, dim=1)
+                color_map(result.indices)
+
+            optimizer.zero_grad()
+            loss = criterion(predicted_tensor, target_tensor)
+        
+            print("epoch=" , epoch ," :idx=",idx , " :loss=",loss)
+            idx += 1
+            loss.backward()
+            optimizer.step()
+
+
+            loss_f += loss.float()
+            prediction_f = softmaxed_tensor.float()
+
+            print("iteration_time = ", time.time() -iteration_time , "[s]")
+
+        delta = time.time() - t_start
+        is_better = loss_f < prev_loss
+
+        if is_better:
+            prev_loss = loss_f
+            torch.save(model.state_dict(), os.path.join(args.save_dir, "model_best.pth"))
+
+        print("Epoch #{}\tLoss: {:.8f}\t Time: {:2f}s".format(epoch+1, loss_f, delta))
+
+
+if __name__ == "__main__":
+    data_root = args.data_root
+    train_path = os.path.join(data_root, args.train_path)
+    img_dir = os.path.join(data_root, args.img_dir)
+    mask_dir = os.path.join(data_root, args.mask_dir)
+
+    CUDA = args.gpu is not None
+    GPU_ID = args.gpu
+
+
+    train_dataset = PascalVOCDataset(list_file=train_path,
+                                     img_dir=img_dir,
+                                     mask_dir=mask_dir)
+
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=BATCH_SIZE,
+                                  shuffle=True,
+                                  num_workers=4)
+
+
+    if CUDA:
+        model = SegNet(input_channels=NUM_INPUT_CHANNELS,
+                       output_channels=NUM_OUTPUT_CHANNELS).cuda(GPU_ID)
+
+        class_weights = 1.0/train_dataset.get_class_probability().cuda(GPU_ID)
+        criterion = torch.nn.CrossEntropyLoss(weight=class_weights).cuda(GPU_ID)
+    else:
+        model = SegNet(input_channels=NUM_INPUT_CHANNELS,
+                       output_channels=NUM_OUTPUT_CHANNELS)
+
+        class_weights = 1.0/train_dataset.get_class_probability()
+        criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+
+    if args.checkpoint:
+        model.load_state_dict(torch.load(args.checkpoint))
+
+
+    optimizer = torch.optim.Adam(model.parameters(),
+                                     lr=LEARNING_RATE)
+
+
+    train()
