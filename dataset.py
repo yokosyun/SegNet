@@ -50,7 +50,7 @@ class PascalVOCDataset(Dataset):
 
         data = {
                     'image': image,
-                    'mask' : torch.LongTensor(gt_mask)
+                    'mask' : gt_mask
                     }
 
         return data
@@ -77,28 +77,23 @@ class PascalVOCDataset(Dataset):
         return torch.Tensor(p_values)
 
     def load_image(self, path=None):
-        # raw_image = Image.open(path)
-        # raw_image = np.transpose(raw_image.resize((224, 224)), (2,1,0))
-
-        # imx_t = np.array(raw_image, dtype=np.float32)/255.0
-        ###
-        raw_image2= Image.open(path).convert('RGB')
-
-
-        raw_image2 = raw_image2.resize((224, 224))
-
-        raw_image2   = transforms.ToTensor()(raw_image2)
-
-        return raw_image2
+        raw_image= Image.open(path).convert('RGB')
+        raw_image = raw_image.resize((224, 224))
+        raw_image   = transforms.ToTensor()(raw_image)
+        return raw_image
 
     def load_mask(self, path=None):
         raw_image = Image.open(path)
         raw_image = raw_image.resize((224, 224))
-        imx_t = np.array(raw_image)
-        # border
-        imx_t[imx_t==255] = len(VOC_CLASSES)
 
-        return imx_t
+
+        imx_t = np.array(raw_image)
+        # 255 is unlabeled so it need to set as next of last class 
+        # http://host.robots.ox.ac.uk/pascal/VOC/voc2012/segexamples/index.html 
+        imx_t[imx_t==255] = len(VOC_CLASSES)
+        tensor = torch.LongTensor(imx_t)
+
+        return tensor
 
 
 if __name__ == "__main__":
