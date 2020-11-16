@@ -5,12 +5,14 @@ Train a SegNet model
 from __future__ import print_function
 import argparse
 from dataset import PascalVOCDataset, NUM_CLASSES
-from model import SegNet
 import os
 import time
 import torch
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
+from models.unet import UNet
+from models.segnet import SegNet
+from torch.nn import functional as F
 
 # Constants
 NUM_INPUT_CHANNELS = 3
@@ -19,19 +21,21 @@ NUM_OUTPUT_CHANNELS = NUM_CLASSES
 NUM_EPOCHS = 6000
 LEARNING_RATE = 1e-4
 MOMENTUM = 0.9
-
+save_segmentation = False
 
 # Arguments
 parser = argparse.ArgumentParser(description='Train a SegNet model')
 
-parser.add_argument('--data_root', required=True)
-parser.add_argument('--train_path', required=True)
-parser.add_argument('--img_dir', required=True)
-parser.add_argument('--mask_dir', required=True)
-parser.add_argument('--save_dir', required=True)
-parser.add_argument('--checkpoint')
+parser.add_argument('--model', required=True,type=str)
+parser.add_argument('--data_root', required=True,type=str)
+parser.add_argument('--train_path', required=True,type=str)
+parser.add_argument('--img_dir', required=True,type=str)
+parser.add_argument('--mask_dir', required=True,type=str)
+parser.add_argument('--save_dir', required=True,type=str)
+parser.add_argument('--checkpoint',type=str)
 parser.add_argument('--batch_size',required=True,type=int)
 parser.add_argument('--gpu', type=int)
+
 
 args = parser.parse_args()
 
@@ -186,7 +190,7 @@ def train():
                 input_tensor = input_tensor.cuda(GPU_ID)
                 target_tensor = target_tensor.cuda(GPU_ID)
 
-            predicted_tensor, softmaxed_tensor = model(input_tensor)
+            predicted_tensor = model(input_tensor)
 
 
 
@@ -194,9 +198,10 @@ def train():
             save_image(input_tensor/torch.max(input_tensor), 'input_tensor.png')
             save_image(test.float(), 'target_tensor.png')
 
-            if (True):
-                result = torch.max(softmaxed_tensor, dim=1)
-                color_map(result.indices)
+            if (save_segmentation):
+                softmaxed_tensor = F.softmax(predicted_tensor, dim=1)
+                softmaxed_tensor = torch.max(softmaxed_tensor, dim=1)
+                color_map(softmaxed_tensor.indices)
 
             optimizer.zero_grad()
             loss = criterion(predicted_tensor, target_tensor)
@@ -208,7 +213,6 @@ def train():
 
 
             loss_f += loss.float()
-            prediction_f = softmaxed_tensor.float()
 
             print("iteration_time = ", time.time() -iteration_time , "[s]")
 
@@ -217,7 +221,7 @@ def train():
 
         if is_better:
             prev_loss = loss_f
-            torch.save(model.state_dict(), os.path.join(args.save_dir, "model_best.pth"))
+            torch.save(model.state_dict(), os.path.join(args.save_dir, args.model + "_best.pth"))
 
         print("Epoch #{}\tLoss: {:.8f}\t Time: {:2f}s".format(epoch+1, loss_f, delta))
 
@@ -242,18 +246,26 @@ if __name__ == "__main__":
                                   num_workers=4)
 
 
-    if CUDA:
+    if args.model == "unet":
+        model = UNet(input_channels=NUM_INPUT_CHANNELS,
+                       output_channels=NUM_OUTPUT_CHANNELS)
+    elif args.model == "segnet":
         model = SegNet(input_channels=NUM_INPUT_CHANNELS,
-                       output_channels=NUM_OUTPUT_CHANNELS).cuda(GPU_ID)
-
-        class_weights = 1.0/train_dataset.get_class_probability().cuda(GPU_ID)
-        criterion = torch.nn.CrossEntropyLoss(weight=class_weights).cuda(GPU_ID)
+                       output_hannels=NUM_OUTPUT_CHANNELS)
     else:
         model = SegNet(input_channels=NUM_INPUT_CHANNELS,
-                       output_channels=NUM_OUTPUT_CHANNELS)
+                       output_hannels=NUM_OUTPUT_CHANNELS)
 
-        class_weights = 1.0/train_dataset.get_class_probability()
-        criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+    class_weights = 1.0/train_dataset.get_class_probability()
+    criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+
+
+    if CUDA:
+        model = model.cuda(GPU_ID)
+
+        class_weights = class_weights.cuda(GPU_ID)
+        criterion = criterion.cuda(GPU_ID)
 
 
     if args.checkpoint:

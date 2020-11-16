@@ -308,25 +308,7 @@ class SegNet(nn.Module):
         x_00d = self.decoder_convtr_00(x_01d)
         dim_0d = x_00d.size()
 
-        x_softmax = F.softmax(x_00d, dim=1)
-
-
-        if DEBUG:
-            print("dim_0: {}".format(dim_0))
-            print("dim_1: {}".format(dim_1))
-            print("dim_2: {}".format(dim_2))
-            print("dim_3: {}".format(dim_3))
-            print("dim_4: {}".format(dim_4))
-
-            print("dim_d: {}".format(dim_d))
-            print("dim_4d: {}".format(dim_4d))
-            print("dim_3d: {}".format(dim_3d))
-            print("dim_2d: {}".format(dim_2d))
-            print("dim_1d: {}".format(dim_1d))
-            print("dim_0d: {}".format(dim_0d))
-
-
-        return x_00d, x_softmax
+        return x_00d
 
 
     def init_vgg_weigts(self):
