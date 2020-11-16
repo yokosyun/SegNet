@@ -17,10 +17,8 @@ NUM_INPUT_CHANNELS = 3
 NUM_OUTPUT_CHANNELS = NUM_CLASSES
 
 NUM_EPOCHS = 6000
-
 LEARNING_RATE = 1e-4
 MOMENTUM = 0.9
-BATCH_SIZE = 8
 
 
 # Arguments
@@ -32,6 +30,7 @@ parser.add_argument('--img_dir', required=True)
 parser.add_argument('--mask_dir', required=True)
 parser.add_argument('--save_dir', required=True)
 parser.add_argument('--checkpoint')
+parser.add_argument('--batch_size',required=True,type=int)
 parser.add_argument('--gpu', type=int)
 
 args = parser.parse_args()
@@ -192,13 +191,10 @@ def train():
 
 
             test = target_tensor.unsqueeze(1)
+            save_image(input_tensor/torch.max(input_tensor), 'input_tensor.png')
+            save_image(test.float(), 'target_tensor.png')
 
-
-
-            # save_image(input_tensor/torch.max(input_tensor), 'input_tensor.png')
-            # save_image(test.float(), 'target_tensor.png')
-
-            if (False):
+            if (True):
                 result = torch.max(softmaxed_tensor, dim=1)
                 color_map(result.indices)
 
@@ -241,8 +237,8 @@ if __name__ == "__main__":
                                      mask_dir=mask_dir)
 
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=BATCH_SIZE,
-                                  shuffle=True,
+                                  batch_size=args.batch_size,
+                                  shuffle=False,
                                   num_workers=4)
 
 

@@ -4,4 +4,5 @@ python train.py --data_root /media/yoko/SSD-PGU3/workspace/datasets/VOCdevkit/VO
                 --mask_dir SegmentationClass \
                 --save_dir result \
                 --checkpoint result/model_best.pth \
+                --batch_size 1 \
                 --gpu 0
