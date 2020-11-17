@@ -10,7 +10,6 @@ import torchvision.models as models
 import pprint
 from torchvision.utils import save_image
 F = nn.functional
-DEBUG = False
 
 
 vgg16_dims = [

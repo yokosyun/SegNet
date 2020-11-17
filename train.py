@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 from models.unet import UNet
 from models.segnet import SegNet
+from models.pspnet import PSPNet
 from torch.nn import functional as F
 
 # Constants
@@ -21,7 +22,6 @@ NUM_OUTPUT_CHANNELS = NUM_CLASSES
 NUM_EPOCHS = 6000
 LEARNING_RATE = 1e-4
 MOMENTUM = 0.9
-save_segmentation = False
 
 # Arguments
 parser = argparse.ArgumentParser(description='Train a SegNet model')
@@ -35,6 +35,7 @@ parser.add_argument('--save_dir', required=True,type=str)
 parser.add_argument('--checkpoint',type=str)
 parser.add_argument('--batch_size',required=True,type=int)
 parser.add_argument('--gpu', type=int)
+parser.add_argument('--save_segmentation', type=bool, default=False)
 
 
 args = parser.parse_args()
@@ -192,13 +193,11 @@ def train():
 
             predicted_tensor = model(input_tensor)
 
-
-
-            test = target_tensor.unsqueeze(1)
             save_image(input_tensor/torch.max(input_tensor), 'input_tensor.png')
-            save_image(test.float(), 'target_tensor.png')
+            save_image(predicted_tensor.max(1)[1].unsqueeze(1).float(), 'predicted_tensor.png')
+            save_image(target_tensor.unsqueeze(1).float(), 'target_tensor.png')
 
-            if (save_segmentation):
+            if (args.save_segmentation):
                 softmaxed_tensor = F.softmax(predicted_tensor, dim=1)
                 softmaxed_tensor = torch.max(softmaxed_tensor, dim=1)
                 color_map(softmaxed_tensor.indices)
@@ -253,13 +252,10 @@ if __name__ == "__main__":
         model = SegNet(input_channels=NUM_INPUT_CHANNELS,
                        output_hannels=NUM_OUTPUT_CHANNELS)
     else:
-        model = SegNet(input_channels=NUM_INPUT_CHANNELS,
-                       output_hannels=NUM_OUTPUT_CHANNELS)
+        model = PSPNet(layers=50, bins=(1, 2, 3, 6), dropout=0.1, classes=NUM_OUTPUT_CHANNELS, use_ppm=True, pretrained=True)
 
     class_weights = 1.0/train_dataset.get_class_probability()
     criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
-
-
 
     if CUDA:
         model = model.cuda(GPU_ID)
@@ -274,6 +270,5 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(),
                                      lr=LEARNING_RATE)
-
 
     train()

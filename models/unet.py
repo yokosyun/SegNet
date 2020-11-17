@@ -39,9 +39,6 @@ class UNet(nn.Module):
 
 """ Parts of the U-Net model """
 
-
-
-
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
